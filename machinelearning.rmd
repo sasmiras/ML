@@ -1,0 +1,145 @@
+---
+title: "Machine Learning - Assignment"
+author: "Sasmira Shetty"
+date: "January 25, 2018"
+output: html_document
+---
+
+##Executive Summary
+There is a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+The goal of the project is to predict the manner in which the exercise was performed. Three models were attempted. I first attempted a basic decision tree using the rpart method. This model had a high out-of-sample error, achieving accuracy of only 0.485 on my validation data set. I then tried a random forest model, which had accuracy of 0.990. The third method was gbm which has accuracy of 0.957
+so I decided to use second model(random forest method) for my final submission
+
+
+#Data Processing and Analysis
+
+```{r echo=FALSE, results='hide'}
+library(caret)
+library(randomForest)
+library(rpart)
+library(rattle)
+set.seed(3433)
+```
+
+Download and read the data with following code
+```{r}
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+training <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+testing <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+dim(training)
+```
+
+##Data Cleaning
+
+Following steps were followed to clean the data
+
+1) Removing predictor variables which are showing very less value of variance
+
+2) Removing columns with NA and "" values
+
+3) The first 7 columns have description data eg subject name , rownumber, timestamp columns and new and num window, these are not required for prediction and have been removed
+
+```{r}
+#Removing the columns which have very low variance values
+myDataNZV <- nearZeroVar(training, saveMetrics=TRUE)
+training <- training[, !myDataNZV$nzv]
+
+#Remove columns with NA or "" values
+goodColumns <- !apply(training, 2, function(x) sum(is.na(x))  || sum(x==""))
+training <- training[, goodColumns]
+
+#Remove unnecessary first 7 columns, they are not required for prediction
+training <- training[, -(1:7)]
+```
+We now have ``r dim(training)[2]`` variables in the dataset
+
+
+## Splitting the data
+
+Split the updated training dataset into a training dataset (60% of the observations) and a Testing dataset (40% of the observations). This Testing dataset will allow us to perform cross validation when developing our model.
+```{r}
+inTrain <- createDataPartition(y=training$classe, p=0.6, list=FALSE)
+myTraining <- training[inTrain, ]
+myTesting <- training[-inTrain, ]
+dim(myTraining); dim(myTesting)
+```
+
+
+## Prediction Model Selection
+
+We will use 3 methods to model the training set and thereby choose the one having the best accuracy to predict the outcome variable in the testing set. The methods are Decision Tree, Random Forest and Generalized Boosted Model.
+
+A confusion matrix plotted at the end of each model will help visualize the analysis better.
+
+Also out of sample error is calculated for each model
+
+
+
+**Decision Tree Model**
+```{r}
+mod_rpart <- train(classe ~ ., data = myTraining, method = "rpart")
+pred_rpart <- predict(mod_rpart,myTesting)
+cmrpart <-confusionMatrix(pred_rpart, myTesting$classe)
+accurpart<-cmrpart$overall[1]
+accurpart
+out_of_sample_error <- 1 - accurpart
+cat(out_of_sample_error)
+plot(cmrpart[[2]], main="Confusion Matrix: Decision Tree Model")
+```
+
+
+
+**Random Forest Model**
+```{r}
+mod_rf <- train(classe ~ ., data = myTraining, method = "rf")
+pred_rf <- predict(mod_rf, myTesting)
+cmrf<-confusionMatrix(pred_rf, myTesting$classe)
+accurf<-cmrf$overall[1]
+accurf
+out_of_sample_error <- 1 - accurf
+cat(out_of_sample_error)
+plot(cmrf[[2]], main="Confusion Matrix: Random Forest Model")
+
+```
+
+
+
+**Generalized Boosted Model**
+```{r results='hide'}
+mod_gbm <- train(classe ~ ., data = myTraining, method = "gbm", verbose=FALSE)
+```
+```{r}
+pred_gbm <- predict(mod_gbm, myTesting)
+cmgbm<-confusionMatrix(pred_gbm, myTesting$classe)
+accugbm<-cmgbm$overall[1]
+accugbm
+out_of_sample_error <- 1 - accugbm
+cat(out_of_sample_error)
+plot(cmgbm[[2]], main="Confusion Matrix: Generalized Boosted Model")
+
+```
+
+
+#Conclusion
+  
+
+1) Decision Tree Model has Accuracy of 0.485
+
+2) Random Forest Model has Accuracy of 0.990
+
+3) Generalized Boosted Model has Accuracy of  0.957
+
+
+Compared to other models, Random Forest method has high accuracy of 99.06% and low out-of-sample error, hence I decided to use Random Forest model for final submission
+
+
+
+#Predicting test output
+
+Following output was submitted to Prediction Quiz
+```{r}
+predictRF <- predict(mod_rf, testing)
+predictRF
+```
